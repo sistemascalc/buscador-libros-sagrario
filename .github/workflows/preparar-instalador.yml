@@ -1,8 +1,13 @@
 name: Preparar instalador de actualización
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/preparar-instalador.yml"
   release:
     types: [published, edited]
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -14,10 +19,15 @@ jobs:
       - name: Extraer y adjuntar instalador EXE
         env:
           GH_TOKEN: ${{ github.token }}
-          TAG: ${{ github.event.release.tag_name }}
+          TAG_EVENTO: ${{ github.event.release.tag_name }}
         shell: bash
         run: |
           set -euo pipefail
+
+          TAG="${TAG_EVENTO:-}"
+          if [ -z "$TAG" ]; then
+            TAG="$(gh release view --repo "$GITHUB_REPOSITORY" --json tagName --jq '.tagName')"
+          fi
 
           if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name' | grep -Eqi '\.exe$'; then
             echo "El instalador EXE ya está publicado."
