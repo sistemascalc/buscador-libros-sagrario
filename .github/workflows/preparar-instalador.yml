@@ -1,0 +1,48 @@
+name: Preparar instalador de actualización
+
+on:
+  release:
+    types: [published, edited]
+
+permissions:
+  contents: write
+
+jobs:
+  extraer-instalador:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Extraer y adjuntar instalador EXE
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.event.release.tag_name }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name' | grep -Eqi '\.exe$'; then
+            echo "El instalador EXE ya está publicado."
+            exit 0
+          fi
+
+          mkdir -p archivos/extraidos
+          cd archivos
+          gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --pattern '*.zip'
+
+          shopt -s nullglob
+          paquetes=( *.zip )
+          if [ "${#paquetes[@]}" -eq 0 ]; then
+            echo "Todavía no hay un ZIP adjunto."
+            exit 0
+          fi
+
+          for paquete in "${paquetes[@]}"; do
+            unzip -o "$paquete" -d extraidos
+          done
+
+          instalador="$(find extraidos -type f -iname '*.exe' | head -n 1)"
+          if [ -z "$instalador" ]; then
+            echo "El ZIP no contiene un instalador EXE."
+            exit 1
+          fi
+
+          gh release upload "$TAG" "$instalador" --repo "$GITHUB_REPOSITORY" --clobber
